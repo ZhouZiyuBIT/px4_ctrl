@@ -1,0 +1,3 @@
+[submodule "script/fast-go"]
+	path = script/fast-go
+	url = git@github.com:ZhouZiyuBIT/fast-go.git
