@@ -7,6 +7,7 @@
 #include<sensor_msgs/Imu.h>
 #include<nav_msgs/Odometry.h>
 #include"quadrotor_sim/thrust_rates.h"
+#include<tf/transform_broadcaster.h>
 
 Px4Bridge quad;
 
@@ -14,6 +15,7 @@ ros::Publisher _imu_pub;
 ros::Publisher _state_pub;
 ros::Subscriber _slam_odom_sub;
 ros::Subscriber _control_u_sub;
+tf::TransformBroadcaster* tf_br;
 
 void rcv_imu_callback(float w[3], float a[3])
 {
@@ -26,6 +28,9 @@ void rcv_imu_callback(float w[3], float a[3])
     s_imu.linear_acceleration.y = a[1];
     s_imu.linear_acceleration.z = a[2];
 
+    quad._angular_rate[0] = w[0];
+    quad._angular_rate[1] = w[1];
+    quad._angular_rate[2] = w[2];
     _imu_pub.publish(s_imu);
 }
 
@@ -33,16 +38,24 @@ void rcv_state_callback(float state[10])
 {
     nav_msgs::Odometry odom;
     odom.pose.pose.position.x = state[0];
-    odom.pose.pose.position.y = -state[1];
-    odom.pose.pose.position.z = -state[2];
+    odom.pose.pose.position.y = state[1];
+    odom.pose.pose.position.z = state[2];
     odom.twist.twist.linear.x = state[3];
-    odom.twist.twist.linear.y = -state[4];
-    odom.twist.twist.linear.z = -state[5];
+    odom.twist.twist.linear.y = state[4];
+    odom.twist.twist.linear.z = state[5];
     odom.pose.pose.orientation.w = state[6];
     odom.pose.pose.orientation.x = state[7];
-    odom.pose.pose.orientation.y = -state[8];
-    odom.pose.pose.orientation.z = -state[9];
+    odom.pose.pose.orientation.y = state[8];
+    odom.pose.pose.orientation.z = state[9];
+    odom.twist.twist.angular.x = quad._angular_rate[0];
+    odom.twist.twist.angular.y = quad._angular_rate[1];
+    odom.twist.twist.angular.z = quad._angular_rate[2];
     _state_pub.publish(odom);
+
+    tf::Transform transform;
+    transform.setOrigin( tf::Vector3(state[1], state[0], -state[2]) );
+    transform.setRotation( tf::Quaternion( state[8], state[7], -state[9], state[6] ));
+    tf_br->sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", "quad_body"));
 }
 
 void rcv_slam_odom_cb(nav_msgs::Odometry msg)
@@ -66,6 +79,7 @@ int main(int argc, char** argv)
     _state_pub = n.advertise<nav_msgs::Odometry>("/px4/state", 1);
     _slam_odom_sub = n.subscribe("/slam/odom", 1, rcv_slam_odom_cb);
     _control_u_sub = n.subscribe("/px4/thrust_rates", 1, rcv_control_u_cb);
+    tf_br = new tf::TransformBroadcaster();
 
     quad.registe_rcv_state_callback(rcv_state_callback);
     quad.registe_rcv_sensor_imu_callback(rcv_imu_callback);

@@ -60,6 +60,8 @@ public:
                          float qw, float qx, float qy, float qz);
 
     int set_thread_rt(int priority);
+    
+    float _angular_rate[3] = {0};
 
 private:
     int32_t _px4_rigidbody_id = 5;
