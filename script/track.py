@@ -28,17 +28,17 @@ from plotting import plot_gates_2d, plot_traj_xy
 rospy.init_node("track")
 rospy.loginfo("ROS: Hello")
 
+# traj = Trajectory(BASEPATH+"results/res_t_n8.csv")
 traj = Trajectory()
 quad = QuadrotorModel(BASEPATH+'quad/quad_real.yaml')
 gates = Gates(BASEPATH+"gates/gates_n6.yaml")
 
 tracker = TrackerOpt(quad)
-tracker.define_opt()
-tracker.reset_xul()
+# tracker.define_opt()
+tracker.load_so(BASEPATH+"generated/tracker_opt.so")
 
 stop_tracker = TrackerOpt2(quad)
 stop_tracker.define_opt()
-stop_tracker.reset_xul()
 
 ctrl_pub = rospy.Publisher("/quadrotor_sim/thrust_rates", thrust_rates, tcp_nodelay=True, queue_size=1)
 
