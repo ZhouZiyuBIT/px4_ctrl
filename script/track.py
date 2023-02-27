@@ -31,7 +31,6 @@ rospy.loginfo("ROS: Hello")
 # traj = Trajectory(BASEPATH+"results/res_t_n8.csv")
 traj = Trajectory()
 quad = QuadrotorModel(BASEPATH+'quad/quad_real.yaml')
-gates = Gates(BASEPATH+"gates/gates_n6.yaml")
 
 tracker = TrackerOpt(quad)
 # tracker.define_opt()
@@ -90,7 +89,7 @@ def odom_cb(msg: Odometry):
             res = stop_tracker.solve(x0, trjp, 20)
         x = res['x'].full().flatten()
         u = thrust_rates()
-        u.thrust = 1.0*(x[tracker._Herizon*13+0]+x[tracker._Herizon*13+1]+x[tracker._Herizon*13+2]+x[tracker._Herizon*13+3])/4
+        u.thrust = 1.3*(x[tracker._Herizon*13+0]+x[tracker._Herizon*13+1]+x[tracker._Herizon*13+2]+x[tracker._Herizon*13+3])/4
         u.wx = x[10]
         u.wy = x[11]
         u.wz = x[12]
@@ -116,7 +115,6 @@ rospy.spin()
 rospy.loginfo("ROS: Goodby")
 import matplotlib.pyplot as plt
 ax = plt.gca()
-plot_gates_2d(ax, gates)
 plt.plot(traj._pos[:,0], traj._pos[:,1])
 plt.plot(r_x, r_y)
 plt.show()
