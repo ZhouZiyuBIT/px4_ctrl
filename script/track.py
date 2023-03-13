@@ -7,8 +7,7 @@ import time
 # ROS
 import rospy
 
-from quadrotor_sim.msg import thrust_rates
-from px4_ctrl.msg import track_traj
+from px4_ctrl.msg import TrackTraj, ThrustRates
 from nav_msgs.msg import Odometry
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
@@ -19,7 +18,7 @@ BASEPATH = os.path.abspath(__file__).split('script', 1)[0]+'script/fast-go/'
 sys.path += [BASEPATH]
 
 from quadrotor import QuadrotorModel
-from tracker import TrackerOpt, TrackerOpt2
+from tracker import TrackerOpt, TrackerOpt2, TrackerPosVel, TrackerPosVel2, TrackerMPCC, TrackerP
 from trajectory import Trajectory
 from gates.gates import Gates
 
@@ -28,42 +27,23 @@ from plotting import plot_gates_2d, plot_traj_xy
 rospy.init_node("track")
 rospy.loginfo("ROS: Hello")
 
-# traj = Trajectory(BASEPATH+"results/res_t_n8.csv")
+# traj = Trajectory(BASEPATH+"results/res_t_n6.csv")
 traj = Trajectory()
-quad = QuadrotorModel(BASEPATH+'quad/quad_real.yaml')
+quad =  QuadrotorModel(BASEPATH+'quad/quad.yaml')
 
-tracker = TrackerOpt(quad)
-# tracker.define_opt()
-tracker.load_so(BASEPATH+"generated/tracker_opt.so")
+tracker = TrackerPosVel(quad)
+# tracker = TrackerOpt(quad)
+# tracker = TrackerMPCC(quad)
+# tracker = TrackerP(quad)
+tracker.define_opt()
+# tracker.load_so(BASEPATH+"generated/tracker_opt.so")
 
-stop_tracker = TrackerOpt2(quad)
+stop_tracker = TrackerOpt(quad)
 stop_tracker.define_opt()
 
-ctrl_pub = rospy.Publisher("/quadrotor/thrust_rates", thrust_rates, tcp_nodelay=True, queue_size=1)
+ctrl_pub = rospy.Publisher("/q_sim/thrust_rates", ThrustRates, tcp_nodelay=True, queue_size=1)
 
 planned_path_pub = rospy.Publisher("planed_path", Path, queue_size=1)
-
-def planned_path_publish(traj: Trajectory):
-    msg = Path()
-    msg.header.stamp = rospy.Time.now()
-    msg.header.frame_id = "world"
-    for i in range(traj._N):
-        pos = PoseStamped()
-        pos.header.frame_id = "world"
-        pos.pose.position.y = traj._pos[i, 0]
-        pos.pose.position.x = traj._pos[i, 1]
-        pos.pose.position.z = -traj._pos[i, 2]
-        # pos.pose.orientation.w = traj._quaternion[i, 0]
-        # pos.pose.orientation.y = traj._quaternion[i, 0]
-        # pos.pose.orientation.x = traj._quaternion[i, 0]
-        # pos.pose.orientation.z = -traj._quaternion[i, 0]
-        pos.pose.orientation.w = 1
-        pos.pose.orientation.y = 0
-        pos.pose.orientation.x = 0
-        pos.pose.orientation.z = 0
-        msg.poses.append(pos)
-
-    planned_path_pub.publish(msg)
 
 r_x = []
 r_y = []
@@ -80,15 +60,24 @@ def odom_cb(msg: Odometry):
                     msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z,
                     msg.pose.pose.orientation.w, msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z,
                     msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z])
+        qw=x0[6]
+        qz=x0[9]
+        ql=np.sqrt(qw*qw+qz*qz)
+        print(qw/ql, qz/ql)
         r_x.append(msg.pose.pose.position.x)
         r_y.append(msg.pose.pose.position.y)
-        trjp = traj.sample(tracker._trj_N, x0[:3]).reshape(-1)
+        trjp, trjv, trjdt, ploy = traj.sample(tracker._trj_N, x0[:3])
+        # print(trjv)
         if cnt<100000:
-            res = tracker.solve(x0, trjp, 20)
+            res = tracker.solve(x0, trjp.reshape(-1), trjv.reshape(-1), trjdt, np.array([-10000,100,-1]), 20)
+            # res = tracker.solve(x0, ploy.reshape(-1), trjdt, 20)
+            # res = tracker.solve(x0, trjp.reshape(-1), 20)
+            # res = tracker.solve(x0, trjp.reshape(-1), trjv.reshape(-1))
         else:
-            res = stop_tracker.solve(x0, trjp, 20)
+            res = stop_tracker.solve(x0, trjp.reshape(-1), 20)
         
         x = res['x'].full().flatten()
+        print(x[-10:])
         Tt = 1*(x[tracker._Herizon*13+0]+x[tracker._Herizon*13+1]+x[tracker._Herizon*13+2]+x[tracker._Herizon*13+3])
         # thrust to z_accel
         qw, qx, qy, qz = x0[6], x0[7], x0[8], x0[9]
@@ -96,28 +85,31 @@ def odom_cb(msg: Odometry):
         c_n = ( Tt/quad._m + quad._D[2,2]*(2*(qw*qy+qx*qz)*vx+2*(qy*qz-qw*qx)*vy+(qw*qw-qx*qx-qy*qy+qz*qz)*vz) )
         print(c_n)
 
-        u = thrust_rates()
-        u.thrust = Tt/4
+        u = ThrustRates()
+        u.thrust = Tt/4/quad._T_max
         u.wx = x[10]
         u.wy = x[11]
         u.wz = x[12]
         ctrl_pub.publish(u)
 
-def track_traj_cb(msg: track_traj):
-    cnt = 0
-    poses = []
-    for pos in msg.pos_pts:
-        cnt += 1
-        poses.append([pos.x, pos.y, pos.z])
-    traj._pos = np.array(poses)
-    traj._N = cnt
-    planned_path_publish(traj)
+def track_traj_cb(msg: TrackTraj):
+    pos = []
+    vel = []
+    quat = []
+    angular = []
+    dt = []
+    for i in range(len(msg.position)):
+        pos.append([msg.position[i].x, msg.position[i].y, msg.position[i].z])
+        vel.append([msg.velocity[i].x, msg.velocity[i].y, msg.velocity[i].z])
+        quat.append([msg.orientation[i].w, msg.orientation[i].x, msg.orientation[i].y, msg.orientation[i].z])
+        angular.append([msg.angular[i].x, msg.angular[i].y, msg.angular[i].z])
+        dt.append(msg.dt[i])
+
+    traj.load_data(np.array(pos), np.array(vel), np.array(quat), np.array(angular), np.array(dt))
 
 # rospy.Subscriber("/quadrotor_sim/Odometry", Odometry, odom_cb)
-rospy.Subscriber("/quadrotor/Odometry", Odometry, odom_cb, queue_size=1, tcp_nodelay=True)
-rospy.Subscriber("/px4_ctrl/track_traj", track_traj, track_traj_cb, queue_size=1, tcp_nodelay=True)
-
-planned_path_publish(traj)
+rospy.Subscriber("/q_sim/odom", Odometry, odom_cb, queue_size=1, tcp_nodelay=True)
+rospy.Subscriber("/plan/track_traj", TrackTraj, track_traj_cb, queue_size=1, tcp_nodelay=True)
 
 rospy.spin()
 rospy.loginfo("ROS: Goodby")

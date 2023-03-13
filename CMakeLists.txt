@@ -69,7 +69,8 @@ find_package(casadi REQUIRED)
 # )
 add_message_files(
   FILES
-  track_traj.msg
+  TrackTraj.msg
+  ThrustRates.msg
 )
 
 ## Generate services in the 'srv' folder
