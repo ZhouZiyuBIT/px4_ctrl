@@ -12,7 +12,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://quadrotor_sim/meshes/quad_body.STL" />
+          filename="package://px4_ctrl/meshes/quad_body.STL" />
       </geometry>
       <material
         name="">
