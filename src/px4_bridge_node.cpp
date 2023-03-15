@@ -6,7 +6,7 @@
 #include<ros/ros.h>
 #include<sensor_msgs/Imu.h>
 #include<nav_msgs/Odometry.h>
-#include"quadrotor_sim/thrust_rates.h"
+#include"px4_ctrl/ThrustRates.h"
 #include<tf/transform_broadcaster.h>
 
 Px4Bridge quad;
@@ -14,7 +14,7 @@ Px4Bridge quad;
 ros::Publisher _imu_pub;
 ros::Publisher _state_pub;
 ros::Subscriber _slam_odom_sub;
-ros::Subscriber _control_u_sub;
+ros::Subscriber _thrust_rates_sub;
 tf::TransformBroadcaster* tf_br;
 
 void rcv_imu_callback(float w[3], float a[3])
@@ -34,7 +34,7 @@ void rcv_imu_callback(float w[3], float a[3])
     _imu_pub.publish(s_imu);
 }
 
-void rcv_state_callback(float state[10])
+void rcv_state_callback(float state[13])
 {
     nav_msgs::Odometry odom;
     odom.pose.pose.position.x = state[0];
@@ -47,9 +47,9 @@ void rcv_state_callback(float state[10])
     odom.pose.pose.orientation.x = state[7];
     odom.pose.pose.orientation.y = state[8];
     odom.pose.pose.orientation.z = state[9];
-    odom.twist.twist.angular.x = quad._angular_rate[0];
-    odom.twist.twist.angular.y = quad._angular_rate[1];
-    odom.twist.twist.angular.z = quad._angular_rate[2];
+    odom.twist.twist.angular.x = state[10];
+    odom.twist.twist.angular.y = state[11];
+    odom.twist.twist.angular.z = state[12];
     _state_pub.publish(odom);
 
     tf::Transform transform;
@@ -64,21 +64,23 @@ void rcv_slam_odom_cb(nav_msgs::Odometry msg)
                         -msg.pose.pose.orientation.x, msg.pose.pose.orientation.w, -msg.pose.pose.orientation.z, msg.pose.pose.orientation.y);
 }
 
-void rcv_control_u_cb(quadrotor_sim::thrust_rates msg)
+void rcv_thrust_rates_cb(px4_ctrl::ThrustRates msg)
 {
     // quad.send_control_u(-msg.az/20, msg.wx, msg.wy, msg.wz);
-    quad.send_control_u(msg.thrust/20, msg.wx, msg.wy, msg.wz);
+    quad.send_control_u(msg.thrust, msg.wx, msg.wy, msg.wz);
 }
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "Px4Bridge");
+    ros::init(argc, argv, "px4");
     ros::NodeHandle n("~");
 
-    _imu_pub = n.advertise<sensor_msgs::Imu>("/px4/imu", 1);
-    _state_pub = n.advertise<nav_msgs::Odometry>("/px4/state", 1);
-    _slam_odom_sub = n.subscribe("/slam/odom", 1, rcv_slam_odom_cb);
-    _control_u_sub = n.subscribe("/px4/thrust_rates", 1, rcv_control_u_cb);
+    _imu_pub = n.advertise<sensor_msgs::Imu>("imu", 1);
+    _state_pub = n.advertise<nav_msgs::Odometry>("odom", 1);
+    // _slam_odom_sub = n.subscribe("slam_odom", 1, rcv_slam_odom_cb, ros::TransportHints().tcpNoDelay());
+    // _thrust_rates_sub = n.subscribe("thrust_rates", 1, rcv_thrust_rates_cb, ros::TransportHints().tcpNoDelay());
+    _slam_odom_sub = n.subscribe("slam_odom", 1, rcv_slam_odom_cb);
+    _thrust_rates_sub = n.subscribe("thrust_rates", 1, rcv_thrust_rates_cb);
     tf_br = new tf::TransformBroadcaster();
 
     quad.registe_rcv_state_callback(rcv_state_callback);
@@ -90,8 +92,8 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
-    // quad.setup_optitrack("192.168.1.200");
-    // quad.add_fordwarding("192.168.1.4", 8976, "192.168.1.4", 14550);
+    quad.setup_optitrack("192.168.1.200");
+    quad.add_fordwarding("127.0.0.1", 8976, "127.0.0.1", 14550);
     quad.core_start();
 
     ros::spin();

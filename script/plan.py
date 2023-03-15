@@ -25,10 +25,10 @@ planned_path_pub = rospy.Publisher("planed_path", Path, queue_size=1)
 
 # gate = Gates(BASEPATH+"gates/gates_test.yaml")
 gate = Gates()
-gate.add_gate([ 0, 3, -1])
-gate.add_gate([-10, 0, -1])
-gate.add_gate([ 0,-3, -1])
-gate.add_gate([ 10.2, 0, -1])
+gate.add_gate([ 0, 1, -1])
+gate.add_gate([-1, 0, -1])
+gate.add_gate([ 0,-1, -1])
+gate.add_gate([ 1.2, 0, -1])
 
 quad = QuadrotorModel(BASEPATH+'quad/quad.yaml')
 Ns = cal_Ns(gate, 0.3)
@@ -105,7 +105,7 @@ def gates_update_cb(msg:TrackTraj):
     pub_traj(res_t, wp_opt)
     pub_path_visualization(res_t, wp_opt)
 
-rospy.Subscriber("/gates_sim/gates", TrackTraj, gates_update_cb, queue_size=1)
+rospy.Subscriber("~gates", TrackTraj, gates_update_cb, queue_size=1)
 # rospy.Timer(rospy.Duration(0.01), timer_cb)
 
 rospy.spin()

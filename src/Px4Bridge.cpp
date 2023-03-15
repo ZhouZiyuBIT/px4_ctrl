@@ -7,12 +7,12 @@
 // #include <stdlib.h>
 #include<fcntl.h>
 #include<termios.h> //set baud rate
-#include <unistd.h>
+#include<unistd.h>
 #include<string.h>
 #include<poll.h>
 
-#include"mavlink/v2.0/standard/mavlink.h"
-#include"mavlink/v2.0/mavlink_helpers.h"
+#include"mavlink/v2.0/common/mavlink.h"
+// #include"mavlink/v2.0/mavlink_helpers.h"
 
 long get_time_us()
 {
@@ -136,7 +136,7 @@ void NATNET_CALLCONV Px4Bridge::DataHandler(sFrameOfMocapData* data, void* pUser
 
 
 	// Rigid Bodies
-//	printf("Rigid Bodies [Count=%d]\n", data->nRigidBodies);
+	printf("Rigid Bodies [Count=%d]\n", data->nRigidBodies);
 	for(int i=0; i < data->nRigidBodies; i++)
 	{
         if(data->RigidBodies[i].ID == ppx4bridge->_px4_rigidbody_id)
@@ -144,6 +144,14 @@ void NATNET_CALLCONV Px4Bridge::DataHandler(sFrameOfMocapData* data, void* pUser
             ppx4bridge->send_odom_data(-data->RigidBodies[i].y, -data->RigidBodies[i].x, -data->RigidBodies[i].z,
                                         data->RigidBodies[i].qw,
                                         -data->RigidBodies[i].qy, -data->RigidBodies[i].qx, -data->RigidBodies[i].qz);
+            printf("\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\n",
+		    	data->RigidBodies[i].x,
+		    	data->RigidBodies[i].y,
+		    	data->RigidBodies[i].z,
+		    	data->RigidBodies[i].qx,
+		    	data->RigidBodies[i].qy,
+		    	data->RigidBodies[i].qz,
+		    	data->RigidBodies[i].qw);
         }
 
         // params
@@ -186,7 +194,7 @@ void Px4Bridge::send_odom_data(float pos_x, float pos_y, float pos_z,
                               q,
                               NAN, NAN, NAN, NAN, NAN, NAN,
                               pose_covariance, vel_covariance,
-                              0, MAV_ESTIMATOR_TYPE_VISION);
+                              0, MAV_ESTIMATOR_TYPE_VISION, 0);
                               
     uint16_t send_len = mavlink_msg_to_send_buffer(send_buf, &msg);
     _port_io_mutex.lock();
@@ -198,9 +206,14 @@ int Px4Bridge::send_control_u(float thrust_sp, float wx_sp, float wy_sp, float w
 {
     uint8_t send_buf[512];
     mavlink_message_t msg;
-    mavlink_msg_quadrotor_control_input_pack(0, 0, &msg,
-                                             thrust_sp,
-                                             wx_sp, wy_sp, wz_sp);
+    float q[4] = {1,0,0,0};
+    mavlink_msg_attitude_target_pack(0,0, &msg,
+                                     get_time_us()*1000, ATTITUDE_TARGET_TYPEMASK_ATTITUDE_IGNORE,
+                                     q,
+                                     wx_sp, wy_sp, wz_sp, thrust_sp);
+    // mavlink_msg_quadrotor_control_input_pack(0, 0, &msg,
+    //                                          thrust_sp,
+    //                                          wx_sp, wy_sp, wz_sp);
 
     uint16_t send_len = mavlink_msg_to_send_buffer(send_buf, &msg);
     _port_io_mutex.lock();
@@ -304,8 +317,8 @@ void Px4Bridge::_core_run()
             mavlink_message_t msg;
 
             mavlink_attitude_t attitude;
-            mavlink_quadrotor_state_t q_state;
-            mavlink_sensor_imu_t s_imu;
+            mavlink_odometry_t q_state;
+            // mavlink_sensor_imu_t s_imu;
             mavlink_debug_t dv;
 
             // We enter here if (fds[0].revents & POLLIN) == true
@@ -358,41 +371,42 @@ void Px4Bridge::_core_run()
                         }
                         break;
 
-                        case MAVLINK_MSG_ID_SENSOR_IMU:
-                        {
-                            mavlink_msg_sensor_imu_decode(&msg, &s_imu);
-                            // std::cout << "received imu" << std::endl;
-                            if(_rcv_sensor_imu_handler)
-                            {
-                                float w[3];
-                                float a[3];
-                                w[0] = s_imu.wx;
-                                w[1] = s_imu.wy;
-                                w[2] = s_imu.wz;
-                                a[0] = s_imu.ax;
-                                a[1] = s_imu.ay;
-                                a[2] = s_imu.az;
-                                _rcv_sensor_imu_handler(w, a);
-                            }
-                        }
-                        break;
+                        // case MAVLINK_MSG_ID_SENSOR_IMU:
+                        // {
+                        //     mavlink_msg_sensor_imu_decode(&msg, &s_imu);
+                        //     // std::cout << "received imu" << std::endl;
+                        //     if(_rcv_sensor_imu_handler)
+                        //     {
+                        //         float w[3];
+                        //         float a[3];
+                        //         w[0] = s_imu.wx;
+                        //         w[1] = s_imu.wy;
+                        //         w[2] = s_imu.wz;
+                        //         a[0] = s_imu.ax;
+                        //         a[1] = s_imu.ay;
+                        //         a[2] = s_imu.az;
+                        //         _rcv_sensor_imu_handler(w, a);
+                        //     }
+                        // }
+                        // break;
 
-                        case MAVLINK_MSG_ID_QUADROTOR_STATE:
-                            // tim.Toc();
-                            // tim.print("q_state dt:");
-                            // tim.Tic();
-                            mavlink_msg_quadrotor_state_decode(&msg, &q_state);
+                        case MAVLINK_MSG_ID_ODOMETRY:
+                        //     // tim.Toc();
+                        //     // tim.print("q_state dt:");
+                        //     // tim.Tic();
+                            mavlink_msg_odometry_decode(&msg, &q_state);
                             
-                            // tim.Tic();
+                        //     // tim.Tic();
                             if(_rcv_state_handler)
                             {
-                                float q_s[10] = {q_state.Px, q_state.Py, q_state.Pz,
-                                                 q_state.Vx, q_state.Vy, q_state.Vz,
-                                                 q_state.Qw, q_state.Qx, q_state.Qy, q_state.Qz};
+                                float q_s[13] = {q_state.x, q_state.y, q_state.z,
+                                                 q_state.vx, q_state.vy, q_state.vz,
+                                                 q_state.q[0], q_state.q[1], q_state.q[2], q_state.q[3],
+                                                 q_state.rollspeed, q_state.pitchspeed, q_state.yawspeed};
                                 _rcv_state_handler(q_s);
                             }
-                            // tim.Toc();
-                            // tim.print("call used tim:");
+                        //     // tim.Toc();
+                        //     // tim.print("call used tim:");
                         break;
 
                         case MAVLINK_MSG_ID_DEBUG:

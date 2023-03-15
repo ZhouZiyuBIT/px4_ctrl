@@ -22,10 +22,10 @@ gates_pub = rospy.Publisher("~gates", TrackTraj, tcp_nodelay=True, queue_size=1)
 gates_marker_pub = rospy.Publisher("/plan/gates_marker", Marker, queue_size=1)
 
 gates = Gates()
-gates.add_gate([ 0, 3, -1])
-gates.add_gate([-10, 0, -1])
-gates.add_gate([ 0,-3, -1])
-gates.add_gate([ 10.2, 0, -1])
+gates.add_gate([ 0, 1, -1])
+gates.add_gate([-1, 0, -1])
+gates.add_gate([ 0,-1, -1])
+gates.add_gate([ 1.2, 0, -1])
 
 def timer_cb(event):
     gates_traj = TrackTraj()

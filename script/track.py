@@ -29,21 +29,19 @@ rospy.loginfo("ROS: Hello")
 
 # traj = Trajectory(BASEPATH+"results/res_t_n6.csv")
 traj = Trajectory()
-quad =  QuadrotorModel(BASEPATH+'quad/quad.yaml')
+quad =  QuadrotorModel(BASEPATH+'quad/quad_real.yaml')
 
-tracker = TrackerPosVel(quad)
-# tracker = TrackerOpt(quad)
+# tracker = TrackerPosVel(quad)
+tracker = TrackerOpt(quad)
 # tracker = TrackerMPCC(quad)
 # tracker = TrackerP(quad)
-tracker.define_opt()
-# tracker.load_so(BASEPATH+"generated/tracker_opt.so")
+# tracker.define_opt()
+tracker.load_so(BASEPATH+"generated/tracker_opt.so")
 
 stop_tracker = TrackerOpt(quad)
 stop_tracker.define_opt()
 
-ctrl_pub = rospy.Publisher("/q_sim/thrust_rates", ThrustRates, tcp_nodelay=True, queue_size=1)
-
-planned_path_pub = rospy.Publisher("planed_path", Path, queue_size=1)
+ctrl_pub = rospy.Publisher("~thrust_rates", ThrustRates, tcp_nodelay=True, queue_size=1)
 
 r_x = []
 r_y = []
@@ -67,11 +65,11 @@ def odom_cb(msg: Odometry):
         r_x.append(msg.pose.pose.position.x)
         r_y.append(msg.pose.pose.position.y)
         trjp, trjv, trjdt, ploy = traj.sample(tracker._trj_N, x0[:3])
-        # print(trjv)
+        print(trjdt)
         if cnt<100000:
-            res = tracker.solve(x0, trjp.reshape(-1), trjv.reshape(-1), trjdt, np.array([-10000,100,-1]), 20)
+            # res = tracker.solve(x0, trjp.reshape(-1), trjv.reshape(-1), trjdt, np.array([-10000,100,-1]), 20)
             # res = tracker.solve(x0, ploy.reshape(-1), trjdt, 20)
-            # res = tracker.solve(x0, trjp.reshape(-1), 20)
+            res = tracker.solve(x0, trjp.reshape(-1), 20)
             # res = tracker.solve(x0, trjp.reshape(-1), trjv.reshape(-1))
         else:
             res = stop_tracker.solve(x0, trjp.reshape(-1), 20)
@@ -108,8 +106,8 @@ def track_traj_cb(msg: TrackTraj):
     traj.load_data(np.array(pos), np.array(vel), np.array(quat), np.array(angular), np.array(dt))
 
 # rospy.Subscriber("/quadrotor_sim/Odometry", Odometry, odom_cb)
-rospy.Subscriber("/q_sim/odom", Odometry, odom_cb, queue_size=1, tcp_nodelay=True)
-rospy.Subscriber("/plan/track_traj", TrackTraj, track_traj_cb, queue_size=1, tcp_nodelay=True)
+rospy.Subscriber("~odom", Odometry, odom_cb, queue_size=1, tcp_nodelay=True)
+rospy.Subscriber("~track_traj", TrackTraj, track_traj_cb, queue_size=1, tcp_nodelay=True)
 
 rospy.spin()
 rospy.loginfo("ROS: Goodby")

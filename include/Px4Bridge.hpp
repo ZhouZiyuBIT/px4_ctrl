@@ -42,7 +42,7 @@ class TicToc
 
 class Px4Bridge
 {
-    using state_callback_f = std::function<void(float state[10])>;
+    using state_callback_f = std::function<void(float state[13])>;
     using sensor_imu_callback_f = std::function<void(float w[3], float a[3])>;
 public:
     Px4Bridge(){}
