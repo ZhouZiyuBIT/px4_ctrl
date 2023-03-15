@@ -65,17 +65,18 @@ def odom_cb(msg: Odometry):
         r_x.append(msg.pose.pose.position.x)
         r_y.append(msg.pose.pose.position.y)
         trjp, trjv, trjdt, ploy = traj.sample(tracker._trj_N, x0[:3])
-        print(trjdt)
+        # print(trjdt)
         if cnt<100000:
             # res = tracker.solve(x0, trjp.reshape(-1), trjv.reshape(-1), trjdt, np.array([-10000,100,-1]), 20)
             # res = tracker.solve(x0, ploy.reshape(-1), trjdt, 20)
+            print("track:")
             res = tracker.solve(x0, trjp.reshape(-1), 20)
             # res = tracker.solve(x0, trjp.reshape(-1), trjv.reshape(-1))
         else:
             res = stop_tracker.solve(x0, trjp.reshape(-1), 20)
         
         x = res['x'].full().flatten()
-        print(x[-10:])
+        # print(x[-10:])
         Tt = 1*(x[tracker._Herizon*13+0]+x[tracker._Herizon*13+1]+x[tracker._Herizon*13+2]+x[tracker._Herizon*13+3])
         # thrust to z_accel
         qw, qx, qy, qz = x0[6], x0[7], x0[8], x0[9]

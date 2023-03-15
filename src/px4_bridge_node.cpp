@@ -77,10 +77,10 @@ int main(int argc, char** argv)
 
     _imu_pub = n.advertise<sensor_msgs::Imu>("imu", 1);
     _state_pub = n.advertise<nav_msgs::Odometry>("odom", 1);
-    // _slam_odom_sub = n.subscribe("slam_odom", 1, rcv_slam_odom_cb, ros::TransportHints().tcpNoDelay());
-    // _thrust_rates_sub = n.subscribe("thrust_rates", 1, rcv_thrust_rates_cb, ros::TransportHints().tcpNoDelay());
-    _slam_odom_sub = n.subscribe("slam_odom", 1, rcv_slam_odom_cb);
-    _thrust_rates_sub = n.subscribe("thrust_rates", 1, rcv_thrust_rates_cb);
+    _slam_odom_sub = n.subscribe("slam_odom", 1, rcv_slam_odom_cb, ros::TransportHints().tcpNoDelay());
+    _thrust_rates_sub = n.subscribe("thrust_rates", 1, rcv_thrust_rates_cb, ros::TransportHints().tcpNoDelay());
+    // _slam_odom_sub = n.subscribe("slam_odom", 1, rcv_slam_odom_cb);
+    // _thrust_rates_sub = n.subscribe("thrust_rates", 1, rcv_thrust_rates_cb);
     tf_br = new tf::TransformBroadcaster();
 
     quad.registe_rcv_state_callback(rcv_state_callback);
@@ -92,7 +92,8 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
-    quad.setup_optitrack("192.168.1.200");
+    // quad.setup_optitrack("192.168.1.200");
+    // quad.add_fordwarding("192.168.1.22", 8976, "192.168.1.35", 14550);
     quad.add_fordwarding("127.0.0.1", 8976, "127.0.0.1", 14550);
     quad.core_start();
 

@@ -141,9 +141,12 @@ void NATNET_CALLCONV Px4Bridge::DataHandler(sFrameOfMocapData* data, void* pUser
 	{
         if(data->RigidBodies[i].ID == ppx4bridge->_px4_rigidbody_id)
         {
-            ppx4bridge->send_odom_data(-data->RigidBodies[i].y, -data->RigidBodies[i].x, -data->RigidBodies[i].z,
+            // ppx4bridge->send_odom_data(-data->RigidBodies[i].y, -data->RigidBodies[i].x, -data->RigidBodies[i].z,
+            //                             data->RigidBodies[i].qw,
+            //                             -data->RigidBodies[i].qy, -data->RigidBodies[i].qx, -data->RigidBodies[i].qz);
+            ppx4bridge->send_odom_data(data->RigidBodies[i].z, -data->RigidBodies[i].x, -data->RigidBodies[i].y,
                                         data->RigidBodies[i].qw,
-                                        -data->RigidBodies[i].qy, -data->RigidBodies[i].qx, -data->RigidBodies[i].qz);
+                                        data->RigidBodies[i].qz, -data->RigidBodies[i].qx, -data->RigidBodies[i].qy);
             printf("\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\n",
 		    	data->RigidBodies[i].x,
 		    	data->RigidBodies[i].y,
@@ -194,7 +197,7 @@ void Px4Bridge::send_odom_data(float pos_x, float pos_y, float pos_z,
                               q,
                               NAN, NAN, NAN, NAN, NAN, NAN,
                               pose_covariance, vel_covariance,
-                              0, MAV_ESTIMATOR_TYPE_VISION, 0);
+                              0, MAV_ESTIMATOR_TYPE_VISION, 95);
                               
     uint16_t send_len = mavlink_msg_to_send_buffer(send_buf, &msg);
     _port_io_mutex.lock();
@@ -207,15 +210,14 @@ int Px4Bridge::send_control_u(float thrust_sp, float wx_sp, float wy_sp, float w
     uint8_t send_buf[512];
     mavlink_message_t msg;
     float q[4] = {1,0,0,0};
-    mavlink_msg_attitude_target_pack(0,0, &msg,
-                                     get_time_us()*1000, ATTITUDE_TARGET_TYPEMASK_ATTITUDE_IGNORE,
-                                     q,
-                                     wx_sp, wy_sp, wz_sp, thrust_sp);
-    // mavlink_msg_quadrotor_control_input_pack(0, 0, &msg,
-    //                                          thrust_sp,
-    //                                          wx_sp, wy_sp, wz_sp);
-
+    float tb[3] = {0,0,0};
+    mavlink_msg_set_attitude_target_pack(0,0, &msg,
+                                         get_time_us()*1000, 0,0,
+                                         ATTITUDE_TARGET_TYPEMASK_ATTITUDE_IGNORE, q,
+                                         wx_sp, wy_sp, wz_sp, thrust_sp,
+                                         tb);
     uint16_t send_len = mavlink_msg_to_send_buffer(send_buf, &msg);
+    
     _port_io_mutex.lock();
     write(_mavlink_port_fd, send_buf, send_len);
     _port_io_mutex.unlock();

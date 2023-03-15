@@ -34,7 +34,7 @@ def thrust_rates_cb(msg:ThrustRates):
 
 thrust_rates_sub = rospy.Subscriber("~thrust_rates", ThrustRates, callback=thrust_rates_cb, queue_size=1, tcp_nodelay=True)
 
-quad = QuadrotorModel(BASEPATH+"quad/quad.yaml")
+quad = QuadrotorModel(BASEPATH+"quad/quad_real.yaml")
 q_sim = QuadrotorSim(quad)
 
 tf_br = tf.TransformBroadcaster(queue_size=1)
