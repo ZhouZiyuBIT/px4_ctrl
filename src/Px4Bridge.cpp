@@ -21,6 +21,27 @@ long get_time_us()
     return (time_now.tv_sec*1000000 + time_now.tv_usec);
 }
 
+void rotate_v(float q[4], float v[3], float vv[3])
+{
+    float qw = q[0];
+    float qx = q[1];
+    float qy = q[2];
+    float qz = q[3];
+
+    float vx = v[0];
+    float vy = v[1];
+    float vz = v[2];
+
+    float tmp1 = (((vx*qw)-(vy*qz))+(vz*qy));
+    float tmp2 = (((vx*qx)+(vy*qy))+(vz*qz));
+    float tmp3 = (((vy*qx)-(vx*qy))+(vz*qw));
+    float tmp4 = (((vy*qw)+(vx*qz))-(vz*qx));
+    
+    vv[0]=((((qw*tmp1)+(qx*tmp2))+(qy*tmp3))-(qz*tmp4));
+    vv[1]=((((qw*tmp4)+(qy*tmp2))-(qx*tmp3))+(qz*tmp1)); 
+    vv[2]=((((qw*tmp3)+(qx*tmp4))-(qy*tmp1))+(qz*tmp2));
+}
+
 Px4Bridge::~Px4Bridge()
 {
     close(_mavlink_port_fd);
@@ -144,10 +165,10 @@ void NATNET_CALLCONV Px4Bridge::DataHandler(sFrameOfMocapData* data, void* pUser
             // ppx4bridge->send_odom_data(-data->RigidBodies[i].y, -data->RigidBodies[i].x, -data->RigidBodies[i].z,
             //                             data->RigidBodies[i].qw,
             //                             -data->RigidBodies[i].qy, -data->RigidBodies[i].qx, -data->RigidBodies[i].qz);
-            ppx4bridge->send_odom_data(data->RigidBodies[i].z, -data->RigidBodies[i].x, -data->RigidBodies[i].y,
+            ppx4bridge->send_odom_data(data->RigidBodies[i].z-8.76, -data->RigidBodies[i].x+0.54, -data->RigidBodies[i].y+0.26,
                                         data->RigidBodies[i].qw,
                                         data->RigidBodies[i].qz, -data->RigidBodies[i].qx, -data->RigidBodies[i].qy);
-            printf("\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\n",
+            printf("%3.2f %3.2f %3.2f %3.2f %3.2f %3.2f %3.2f\n",
 		    	data->RigidBodies[i].x,
 		    	data->RigidBodies[i].y,
 		    	data->RigidBodies[i].z,
@@ -198,8 +219,8 @@ void Px4Bridge::send_odom_data(float pos_x, float pos_y, float pos_z,
                               NAN, NAN, NAN, NAN, NAN, NAN,
                               pose_covariance, vel_covariance,
                               0, MAV_ESTIMATOR_TYPE_VISION, 95);
-                              
-    uint16_t send_len = mavlink_msg_to_send_buffer(send_buf, &msg);
+
+    uint16_t send_len = mavlink_msg_to_send_buffer(send_buf, &msg);    
     _port_io_mutex.lock();
     write(_mavlink_port_fd, send_buf, send_len);
     _port_io_mutex.unlock();
@@ -216,9 +237,9 @@ int Px4Bridge::send_control_u(float thrust_sp, float wx_sp, float wy_sp, float w
                                          ATTITUDE_TARGET_TYPEMASK_ATTITUDE_IGNORE, q,
                                          wx_sp, wy_sp, wz_sp, thrust_sp,
                                          tb);
-    uint16_t send_len = mavlink_msg_to_send_buffer(send_buf, &msg);
     
     _port_io_mutex.lock();
+    uint16_t send_len = mavlink_msg_to_send_buffer(send_buf, &msg);
     write(_mavlink_port_fd, send_buf, send_len);
     _port_io_mutex.unlock();
 
@@ -401,10 +422,16 @@ void Px4Bridge::_core_run()
                         //     // tim.Tic();
                             if(_rcv_state_handler)
                             {
+                                float q_[4] = {q_state.q[0], q_state.q[1], q_state.q[2], q_state.q[3]};
+                                float v[3] = {q_state.vx, q_state.vy, q_state.vz};
+                                float vv[3];
+                                rotate_v(q_, v, vv);
+
                                 float q_s[13] = {q_state.x, q_state.y, q_state.z,
-                                                 q_state.vx, q_state.vy, q_state.vz,
+                                                 vv[0], vv[1], vv[2],
                                                  q_state.q[0], q_state.q[1], q_state.q[2], q_state.q[3],
                                                  q_state.rollspeed, q_state.pitchspeed, q_state.yawspeed};
+                                
                                 _rcv_state_handler(q_s);
                             }
                         //     // tim.Toc();

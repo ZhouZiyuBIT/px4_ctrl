@@ -11,6 +11,7 @@ from px4_ctrl.msg import TrackTraj, ThrustRates
 from nav_msgs.msg import Odometry
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Bool
 
 # 
 import os, sys
@@ -38,10 +39,15 @@ tracker = TrackerOpt(quad)
 # tracker.define_opt()
 tracker.load_so(BASEPATH+"generated/tracker_opt.so")
 
-stop_tracker = TrackerOpt(quad)
+stop_tracker = TrackerOpt2(quad)
 stop_tracker.define_opt()
 
 ctrl_pub = rospy.Publisher("~thrust_rates", ThrustRates, tcp_nodelay=True, queue_size=1)
+
+stop_flag = False
+def stop_cb(msg: Bool):
+    global stop_flag
+    stop_flag = msg.data
 
 r_x = []
 r_y = []
@@ -61,12 +67,13 @@ def odom_cb(msg: Odometry):
         qw=x0[6]
         qz=x0[9]
         ql=np.sqrt(qw*qw+qz*qz)
-        print(qw/ql, qz/ql)
+        # print(qw/ql, qz/ql)
         r_x.append(msg.pose.pose.position.x)
         r_y.append(msg.pose.pose.position.y)
         trjp, trjv, trjdt, ploy = traj.sample(tracker._trj_N, x0[:3])
         # print(trjdt)
-        if cnt<100000:
+        if not stop_flag:
+            print(cnt)
             # res = tracker.solve(x0, trjp.reshape(-1), trjv.reshape(-1), trjdt, np.array([-10000,100,-1]), 20)
             # res = tracker.solve(x0, ploy.reshape(-1), trjdt, 20)
             print("track:")
@@ -78,11 +85,12 @@ def odom_cb(msg: Odometry):
         x = res['x'].full().flatten()
         # print(x[-10:])
         Tt = 1*(x[tracker._Herizon*13+0]+x[tracker._Herizon*13+1]+x[tracker._Herizon*13+2]+x[tracker._Herizon*13+3])
+        
         # thrust to z_accel
-        qw, qx, qy, qz = x0[6], x0[7], x0[8], x0[9]
-        vx, vy, vz = x0[3], x0[4], x0[5]
-        c_n = ( Tt/quad._m + quad._D[2,2]*(2*(qw*qy+qx*qz)*vx+2*(qy*qz-qw*qx)*vy+(qw*qw-qx*qx-qy*qy+qz*qz)*vz) )
-        print(c_n)
+        # qw, qx, qy, qz = x0[6], x0[7], x0[8], x0[9]
+        # vx, vy, vz = x0[3], x0[4], x0[5]
+        # c_n = ( Tt/quad._m + quad._D[2,2]*(2*(qw*qy+qx*qz)*vx+2*(qy*qz-qw*qx)*vy+(qw*qw-qx*qx-qy*qy+qz*qz)*vz) )
+        # print(c_n)
 
         u = ThrustRates()
         u.thrust = Tt/4/quad._T_max
@@ -109,6 +117,7 @@ def track_traj_cb(msg: TrackTraj):
 # rospy.Subscriber("/quadrotor_sim/Odometry", Odometry, odom_cb)
 rospy.Subscriber("~odom", Odometry, odom_cb, queue_size=1, tcp_nodelay=True)
 rospy.Subscriber("~track_traj", TrackTraj, track_traj_cb, queue_size=1, tcp_nodelay=True)
+rospy.Subscriber("stop_flag", Bool, stop_cb)
 
 rospy.spin()
 rospy.loginfo("ROS: Goodby")
